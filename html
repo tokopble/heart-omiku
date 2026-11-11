@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>バイタル精神状態おみくじ</title>
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --accent-color: #8b5cf6;
+      --accent-glow: rgba(139, 92, 246, 0.4);
+      --text-color: #f8fafc;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      overflow-x: hidden;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 480px;
+      background: var(--card-bg);
+      border-radius: 24px;
+      padding: 32px 24px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), 0 0 40px var(--accent-glow);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      text-align: center;
+      position: relative;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 8px;
+      letter-spacing: 2px;
+      color: #e2e8f0;
+    }
+
+    .subtitle {
+      font-size: 0.85rem;
+      color: #94a3b8;
+      margin-bottom: 24px;
+    }
+
+    /* ボタンデザイン */
+    .btn {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: white;
+      border: none;
+      padding: 12px 28px;
+      font-size: 0.95rem;
+      font-weight: bold;
+      border-radius: 50px;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+      transition: all 0.2s ease;
+      margin-bottom: 20px;
+    }
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(99, 102, 241, 0.6);
+    }
+    .btn:disabled {
+      background: #475569;
+      box-shadow: none;
+      cursor: not-allowed;
+    }
+
+    /* ステータス / 表示切替 */
+    .view-section {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 260px;
+    }
+    .view-section.active {
+      display: flex;
+    }
+
+    /* 1. 待機中アニメーション */
+    .pulse-ring {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      background: rgba(139, 92, 246, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.5rem;
+      animation: waitingPulse 2s infinite ease-in-out;
+      margin-bottom: 16px;
+    }
+    @keyframes waitingPulse {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4); }
+      50% { transform: scale(1.08); box-shadow: 0 0 0 20px rgba(139, 92, 246, 0); }
+    }
+
+    /* 2. 計測中アニメーション (10秒カウント) */
+    .progress-circle {
+      position: relative;
+      width: 140px;
+      height: 140px;
+      margin-bottom: 16px;
+    }
+    .progress-circle svg {
+      width: 140px;
+      height: 140px;
+      transform: rotate(-90deg);
+    }
+    .progress-circle circle {
+      fill: none;
+      stroke-width: 8;
+      stroke-linecap: round;
+    }
+    .circle-bg { stroke: #334155; }
+    .circle-bar {
+      stroke: #ec4899;
+      stroke-dasharray: 408;
+      stroke-dashoffset: 408;
+      transition: stroke-dashoffset 1s linear;
+    }
+    .timer-text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 2rem;
+      font-weight: bold;
+      color: #f472b6;
+    }
+    .bpm-live {
+      font-size: 1.1rem;
+      color: #cbd5e1;
+      margin-top: 8px;
+    }
+    .bpm-val {
+      font-size: 1.6rem;
+      font-weight: bold;
+      color: #38bdf8;
+    }
+
+    /* 3. おみくじシャッフルアニメーション */
+    .omikuji-box {
+      width: 70px;
+      height: 120px;
+      background: linear-gradient(135deg, #dc2626, #991b1b);
+      border-radius: 12px 12px 6px 6px;
+      border: 3px solid #fef08a;
+      position: relative;
+      margin-bottom: 20px;
+      box-shadow: 0 10px 25px rgba(220, 38, 38, 0.4);
+    }
+    .omikuji-box::before {
+      content: '御神籤';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: #fef08a;
+      font-weight: bold;
+      writing-mode: vertical-rl;
+      font-size: 1.1rem;
+      letter-spacing: 4px;
+    }
+    .shaking {
+      animation: shakeBox 0.5s infinite ease-in-out;
+    }
+    @keyframes shakeBox {
+      0%, 100% { transform: rotate(0deg) translateY(0); }
+      25% { transform: rotate(-12deg) translateY(-8px); }
+      75% { transform: rotate(12deg) translateY(-8px); }
+    }
+
+    /* 4. 運勢結果表示 */
+    .result-card {
+      animation: revealResult 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      width: 100%;
+    }
+    @keyframes revealResult {
+      0% { opacity: 0; transform: scale(0.8) translateY(20px); }
+      100% { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .fortune-rank {
+      font-size: 3.5rem;
+      font-weight: 900;
+      margin: 12px 0;
+      background: linear-gradient(135deg, #fef08a, #f59e0b);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-shadow: 0 0 30px rgba(245, 158, 11, 0.3);
+    }
+    .avg-bpm-badge {
+      display: inline-block;
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      padding: 4px 16px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      margin-bottom: 16px;
+    }
+    .fortune-desc {
+      font-size: 0.95rem;
+      line-height: 1.6;
+      color: #e2e8f0;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 16px;
+      border-radius: 12px;
+      margin-bottom: 24px;
+      text-align: left;
+    }
+
+    .status-text {
+      font-size: 0.9rem;
+      color: #94a3b8;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>精神状態 占術デバイス</h1>
+  <p class="subtitle">MAX30102 バイタル波形連動システム</p>
+
+  <button id="connectBtn" class="btn">デバイスに接続 (COM)</button>
+
+  <!-- STATE 1: 待機中 (指乗せ待ち) -->
+  <div id="idleView" class="view-section active">
+    <div class="pulse-ring">❤️</div>
+    <p style="font-size: 1.1rem; font-weight: bold; color: #f1f5f9;">センサーに指を乗せてください</p>
+    <p class="status-text">心拍（BPM）を検知すると自動で計測が始まります</p>
+  </div>
+
+  <!-- STATE 2: 10秒計測中 -->
+  <div id="measuringView" class="view-section">
+    <div class="progress-circle">
+      <svg>
+        <circle class="circle-bg" cx="70" cy="70" r="65"></circle>
+        <circle id="progressBar" class="circle-bar" cx="70" cy="70" r="65"></circle>
+      </svg>
+      <div id="countdownText" class="timer-text">10</div>
+    </div>
+    <div class="bpm-live">リアルタイム心拍: <span id="liveBpm" class="bpm-val">--</span> BPM</div>
+    <p class="status-text" style="margin-top:12px;">精神状態・脈波を10秒間ディープ解析中...</p>
+  </div>
+
+  <!-- STATE 3: おみくじアニメーション -->
+  <div id="drawingView" class="view-section">
+    <div id="omikujiBox" class="omikuji-box shaking"></div>
+    <p style="font-size: 1.1rem; font-weight: bold; color: #fef08a;">運勢を抽出中...</p>
+  </div>
+
+  <!-- STATE 4: 結果表示 -->
+  <div id="resultView" class="view-section">
+    <div class="result-card">
+      <div class="avg-bpm-badge">平均心拍数: <span id="resBpm">0</span> BPM</div>
+      <div id="resRank" class="fortune-rank">大吉</div>
+      <div id="resDesc" class="fortune-desc">説明テキスト</div>
+      <button id="retryBtn" class="btn" style="margin-bottom:0;">もう一度占う</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let port, reader;
+  let currentState = 'IDLE'; // IDLE, MEASURING, DRAWING, RESULT
+  let bpmSamples = [];
+  let countdownTimer = null;
+  let remainingSeconds = 10;
+
+  const connectBtn = document.getElementById('connectBtn');
+  const retryBtn = document.getElementById('retryBtn');
+
+  const idleView = document.getElementById('idleView');
+  const measuringView = document.getElementById('measuringView');
+  const drawingView = document.getElementById('drawingView');
+  const resultView = document.getElementById('resultView');
+
+  const liveBpmEl = document.getElementById('liveBpm');
+  const countdownText = document.getElementById('countdownText');
+  const progressBar = document.getElementById('progressBar');
+  const omikujiBox = document.getElementById('omikujiBox');
+
+  const resBpm = document.getElementById('resBpm');
+  const resRank = document.getElementById('resRank');
+  const resDesc = document.getElementById('resDesc');
+
+  // Web Serial 接続処理
+  connectBtn.addEventListener('click', async () => {
+    try {
+      port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 9600 });
+      connectBtn.disabled = true;
+      connectBtn.innerText = "デバイス接続中 (9600 baud)";
+      readSerialData();
+    } catch (err) {
+      alert("シリアルポート接続エラー: " + err.message);
+    }
+  });
+
+  // シリアルデータ読み取りループ
+  async function readSerialData() {
+    const textDecoder = new TextDecoderStream();
+    const readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
+    reader = textDecoder.readable.getReader();
+    let buffer = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += value;
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // 未完了の行を保持
+
+      for (const line of lines) {
+        const bpm = parseInt(line.trim(), 10);
+        if (!isNaN(bpm)) {
+          handleBpmInput(bpm);
+        }
+      }
+    }
+  }
+
+  // 入力BPMに基づく状態管理ロジック
+  function handleBpmInput(bpm) {
+    if (currentState === 'IDLE') {
+      if (bpm > 0) {
+        // 指が乗った瞬間（BPM検知） -> 10秒計測スタート
+        startMeasurement();
+      }
+    } else if (currentState === 'MEASURING') {
+      if (bpm === 0) {
+        // 途中で指が離れた場合 -> キャンセルしてリセット
+        cancelMeasurement("指が外れました。最初からやり直してください。");
+      } else {
+        bpmSamples.push(bpm);
+        liveBpmEl.innerText = bpm;
+      }
+    }
+  }
+
+  // 10秒間の計測開始
+  function startMeasurement() {
+    currentState = 'MEASURING';
+    bpmSamples = [];
+    remainingSeconds = 10;
+    
+    switchView(measuringView);
+    updateProgress(10);
+
+    countdownTimer = setInterval(() => {
+      remainingSeconds--;
+      updateProgress(remainingSeconds);
+
+      if (remainingSeconds <= 0) {
+        clearInterval(countdownTimer);
+        triggerOmikujiDraw();
+      }
+    }, 1000);
+  }
+
+  // 途中で指が外れた場合のリセット
+  function cancelMeasurement(msg) {
+    clearInterval(countdownTimer);
+    currentState = 'IDLE';
+    switchView(idleView);
+    alert(msg);
+  }
+
+  // プログレスバー・カウントダウン更新
+  function updateProgress(sec) {
+    countdownText.innerText = sec;
+    const maxOffset = 408;
+    const progress = (10 - sec) / 10;
+    progressBar.style.strokeDashoffset = maxOffset * (1 - progress);
+  }
+
+  // 自動おみくじアニメーション実行 (2.5秒間)
+  function triggerOmikujiDraw() {
+    currentState = 'DRAWING';
+    switchView(drawingView);
+
+    // 平均BPM算出
+    const avgBpm = bpmSamples.length > 0
+      ? Math.round(bpmSamples.reduce((a, b) => a + b, 0) / bpmSamples.length)
+      : 72;
+
+    // 2.5秒間筒をシャッフルした後に結果表示
+    setTimeout(() => {
+      showResult(avgBpm);
+    }, 2500);
+  }
+
+  // 運勢判定と結果開示
+  function showResult(avgBpm) {
+    currentState = 'RESULT';
+    resBpm.innerText = avgBpm;
+
+    let rank = "";
+    let desc = "";
+
+    // BPMに応じた精神状態・運勢の分岐
+    if (avgBpm < 62) {
+      rank = "養生吉";
+      desc = "【静寂・リセット期】<br>心拍が非常に静かで省エネモードに入っています。焦って動くよりも、あたたかいお茶を飲んでセルフケアに専念することで明日の運気が上昇します。";
+    } else if (avgBpm >= 62 && avgBpm <= 78) {
+      rank = "大 吉";
+      desc = "【完全調和・直感冴える】<br>自律神経のバランスが完璧です！心身ともにクリアでブレのない状態。今思いついたアイデアを実行に移すと最高の成果が得られます。";
+    } else if (avgBpm >= 79 && avgBpm <= 88) {
+      rank = "中 吉";
+      desc = "【情熱・エネルギー高揚】<br>脈拍にポジティブな高鳴りが見られます。モチベーションが高まっているタイミングです。この勢いに乗って一気にやり残した課題を終わらせましょう！";
+    } else {
+      rank = "波乱吉";
+      desc = "【緊張・交感神経優位】<br>少し興奮状態またはストレスを検知しました。エネルギーは満ち溢れていますが過走気味です。ゆっくり3回深呼吸して肩の力を抜くと運気が安定します。";
+    }
+
+    resRank.innerText = rank;
+    resDesc.innerHTML = desc;
+    switchView(resultView);
+  }
+
+  // ビュー切り替えヘルパー
+  function switchView(targetView) {
+    [idleView, measuringView, drawingView, resultView].forEach(v => v.classList.remove('active'));
+    targetView.classList.add('active');
+  }
+
+  // 再挑戦ボタン
+  retryBtn.addEventListener('click', () => {
+    currentState = 'IDLE';
+    switchView(idleView);
+  });
+</script>
+
+</body>
+</html>
